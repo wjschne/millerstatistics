@@ -1,0 +1,994 @@
+---
+title: "Figures"
+author: "W. Joel Schneider"
+date: "7/18/2021"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+library(extrafont)
+extrafont::loadfonts("win", quiet = TRUE)
+extrafont::loadfonts("pdf", quiet = TRUE)
+library(tidyverse)
+library(ggtext)
+library(WJSmisc)
+library(glue)
+library(tikzDevice)
+library(ggnormalviolin)
+knitr::opts_chunk$set(echo = TRUE, dev = "svglite")
+
+ggsvg <- function(f,...) {
+  cowplot::ggsave2(glue("{f}.pdf"), device = cairo_pdf, ...)
+  WJSmisc::pdf2svg(f)
+  file.show(glue("{f}.svg"))
+}
+
+if (!interactive()) {
+  options(
+    tikzLatexPackages = c(getOption("tikzLatexPackages"),
+                          "\\usepackage{amsmath}"),
+    device = function(file, width, height) {
+      svglite::svglite(tempfile(), width = width, height = height)
+    }
+  )
+}
+
+if (!interactive()) {
+  options(
+  device = function(file, width, height) {
+    svglite::svglite(tempfile(), width = width, height = height)
+  }
+)
+}
+
+# Plotting Defaults
+my_font_size = 16
+my_font <- "Roboto Condensed"
+update_geom_defaults(
+  geom = "text",
+  new = list(
+    family = my_font, 
+    color = "gray30"))
+update_geom_defaults(
+  geom = "label",
+  new = list(
+    family = my_font,
+    label.padding = unit(0, "mm"),
+    label.size = 0,
+    color = "gray30"))
+update_geom_defaults(
+  "richtext",
+  list(
+    family = my_font,
+    label.color = NA,
+    label.padding = unit(0, "mm"),
+    color = "gray30"))
+theme_set(theme_minimal(base_size = my_font_size, base_family = my_font))
+```
+
+# Normal Distibution
+
+$$
+Q=\left(\frac{x-\mu}{\sigma}\right)^2
+$$
+
+$$
+f_X (x;\mu,\sigma)=\frac{1}{\sigma\sqrt{ 2\pi   e^{Q} }}
+$$
+
+$$
+f_X (x;\mu,\sigma)=\frac{1}{\sigma\sqrt{\!2\pi   e^{\left(\frac{x-\mu}{\sigma}\right)^{\!2}} }}
+$$
+
+$$
+f_X (x;\mu,\sigma)=\sqrt[-2]{\!2\pi  \sigma^2 e^{\left(\frac{x-\mu}{\sigma}\right)^{\!2}} }
+$$
+
+```{r normal, dev='tikz', fig.width=6.5, fig.height=4.25}
+x <- seq(-4, 4)
+x_label <- paste0(
+                  symnum(x, 
+                         c(-Inf, 0, Inf), 
+                         c("", "+")), 
+                  x, 
+                  "\\sigma")
+x_label[5] <- "\\mu"
+# x_label[6] <- "+\\sigma"
+# x_label[4] <- "-\\sigma"
+x_label <- paste0("$", x_label, "$")
+
+ggplot(data.frame(x = c(-4.3, 4.3)), aes(x)) +
+  stat_function(
+    fun = dnorm,
+    geom = "area",
+    fill  = "gray60",
+    n = 1001,
+    alpha = 0.5
+  ) +
+  scale_x_continuous(
+    NULL,
+    breaks = x,
+    labels = x_label,
+    minor_breaks = NULL,
+    expand = expansion()
+  ) +
+  scale_y_continuous(NULL,
+                     breaks = NULL,
+                     minor_breaks = NULL,
+                     expand = expansion())  +
+  geom_text(
+    data = tibble(x = -2.5,
+                  y = .375,
+                  label = "$X \\sim \\mathcal{N}(\\mu, \\sigma)$"),
+    aes(label = label, y = y),
+    size = 8
+  ) +
+  coord_cartesian(clip = "off") +
+  theme(panel.grid.major.x = element_blank(),
+        axis.ticks = element_line(color = "gray60")) + 
+  annotate(x = 2.5, y = .375, label = r"($f_X (x;\mu,\sigma)=\frac{1}{\sigma\sqrt{\!2\pi   e^{\left(\frac{x-\mu}{\sigma}\right)^{\!2}} }}$)", geom = "text", size = 5)
+
+
+
+```
+
+# Standard Scores
+
+```{r, fig.width = 6.5, fig.height = 6.68}
+normal_height <- 4.6
+normal_offset <- 0
+text_height = 0.41
+scale_height = text_height * 3 - 0.15
+range_height = 0.55
+rect_top <- 0.45
+offset <- normal_offset + scale_height
+plot_height <- offset + normal_height + rect_top + range_height
+
+
+rect_min <- (36 - 100) / 15
+rect_max <- (165 - 100) / 15
+
+x_min <- rect_min - 0.01
+x_max <- rect_max + 0.01
+plot_width <- x_max - x_min
+
+overlay_alpha <- 0.8
+
+d <- tibble(x = seq(rect_min - 0.01, rect_max + 0.01, length.out = 1000), y = normal_height * dnorm(x) / dnorm(0))
+d_add <- tibble(x = c(rect_max  + 0.01, rect_min - 0.01), y = normal_height + rect_top + 0.01)
+d_normal <- bind_rows(d, d_add)
+d_rect <- tibble(x = c(rect_min, (c(60, 70, 80,90) - 100) / 15),
+                 xend = c(rect_max, (c(140, 130,120, 110) - 100) / 15),
+                 y = -offset - rect_top,
+                 yend = normal_height + rect_top ,
+                 color = paste0("gray", c(40,50,60,70,80)))
+
+d_scale <- bind_rows(
+  # tibble(scale = "z",
+  #        value = seq(-4,4,1),
+  #        mu = 0, sigma = 1,
+  #        x = seq(-4,4,1),
+  #        y = 1),
+  tibble(scale = "IQ", 
+         value = seq(40,160,10), 
+         mu = 100, 
+         sigma = 15, 
+         x = (value - mu)  / sigma,
+         y = 2),
+  tibble(scale = "Scaled", 
+         value = seq(1,19,1), 
+         mu = 10, 
+         sigma = 3, 
+         x = (value - mu)  / sigma,
+         y = 3),
+  tibble(scale = "T", 
+         value = seq(10,90,5), 
+         mu = 50, 
+         sigma = 10,
+         x = (value - mu)  / sigma,
+         y = 4),
+  tibble(scale = "Percentile", 
+         # value = c(0.01, 0.1, 1,5,10,25, 50, 75, 90, 95, 99, 99.9, 99.99),
+         value = seq(40,160,10) %>% pnorm(mean = 100, sd = 15) %>% WJSmisc::proportion2percentile(.) %>% as.numeric,
+         mu = 0, 
+         sigma = 1,
+         # x = qnorm(value / 100), 
+         x = seq(40,160,10) %>% `-`(100) %>% `/`(15),
+         y = 5)
+    
+) %>% 
+  mutate(y = y - text_height * 2)
+
+
+d_scale_label <- tibble(scale = c(
+  # "***z*-scores**<br><span style='font-size:8pt'>*&mu;* = 0, *&sigma;* = 1</span>", 
+  "**IQ Scores**<br><span style='font-size:8pt'>*&mu;* = 100, *&sigma;* = 15</span>", 
+  "**Scaled Scores**<br><span style='font-size:8pt'>*&mu;* = 10, *&sigma;* = 3</span>", 
+  "**T Scores**<br><span style='font-size:8pt'>*&mu;* = 50, *&sigma;* = 10</span>", 
+  "**Percentile Rank**<br><span style='font-size:8pt'>0&ndash;100</span>"),
+                        x = c(rep(-4.25,4)),
+                        y = -text_height * (1:4 - 0.95),
+                        hjust = 1)
+
+d_range_label <- tibble(x = (c(48, 65, 75,85,100,115,125, 135, 152) - 100) / 15,
+                        y = 5,
+                        label = c("Extremely\nLow",
+                          "Very\nLow",
+                                  "Low\nRange",
+                                  "Low\nAverage",
+                                  "Average\nRange",
+                                  "High\nAverage",
+                                  "High\nRange",
+                                  "Very\nHigh",
+                          "Extremely\nHigh"))
+
+gg <- ggplot(mapping = aes(x,y)) +
+  geom_rect(data = d_rect, aes(xmin = x, ymin = y, xmax = xend, ymax = yend, fill = color), color = NA) + 
+  geom_polygon(data = d_normal, fill = "white", alpha = overlay_alpha, color = NA) + 
+  geom_polygon(data = tibble(x = c(rect_min - 0.01, 
+                                   rect_min - 0.01,
+                                   rect_max + 0.01,
+                                   rect_max + 0.01), 
+    y = c(-normal_offset,
+          -normal_offset - scale_height - rect_top,
+          -normal_offset - scale_height - rect_top,
+          -normal_offset)), 
+    fill = "white", 
+    alpha = overlay_alpha,
+    color = NA) +
+  geom_segment(data = d_scale, 
+               aes(y = -text_height * (y - 1.1) + 0.025, 
+                   yend = -text_height * (y - 1.1) - 0.025, 
+                   xend = x, 
+                   x = x),
+               color = "gray60",
+               size = 0.25) +
+  geom_segment(data = tibble(x = rect_min + 1 / 15, xend = rect_max - 1 / 15, 
+                             y = (-1:-4 + 1) * text_height,
+                             yend = (-1:-4 + 1) * text_height),
+               aes(xend = xend, 
+                   yend = yend),
+               color = "gray60",
+               size = 0.25) +
+  geom_text(data = d_range_label, 
+            aes(x = x, y = y , label = label), 
+            size = 2.9, 
+            fontface = "bold", lineheight = 0.8, 
+            color = "gray35", angle = 0, hjust = 0.5, vjust = 1.1) +
+  geom_text(data = d_scale, aes(x = x, y = -text_height * (y - .78), label = value), size = 2.8) +
+  geom_richtext(data = d_scale_label, 
+                aes(label = scale, 
+                    hjust = hjust), 
+                size = 3.25, 
+                color = "gray30", 
+                fill = NA, 
+                label.color = NA, 
+                lineheight = .9) +
+  scale_fill_identity() +
+  scale_color_identity() +
+  scale_x_continuous(limits = c(-6,x_max), expand = expansion(0,0)) +
+  theme_void(base_family = my_font) +
+  coord_fixed() + 
+  theme(plot.background = element_blank())
+
+page_width <- 6.5
+page_height <- plot_height * page_width / plot_width
+gg
+# ggsave("standard_scores.pdf", plot = gg, width = page_width, height = page_height, units = "in", device = cairo_pdf)
+# pander::openFileInOS("standard_scores.pdf")
+
+# ggsave("standard_scores.svg", plot = gg, width = page_width, height = page_height, units = "in")
+# pander::openFileInOS("standard_scores.svg")
+
+
+```
+
+# Score Display
+
+```{r, fig.width = 7.5, fig.height = 6}
+d_rect <- tibble(SS = 100, 
+                 width = c(20, 40, 60, 80, 122), 
+                 fill = paste0("gray", c(95, 90, 80, 70, 65) - 25)) %>% 
+  arrange(-width)
+
+tibble(
+  Scale = c(
+    "Fluid Reasoning",
+    "Verbal Comprehension",
+    "Visual-Spatial Processing",
+    "Working Memory",
+    "Processing Speed",
+    "Population"),
+  y = c(5:1 - 0.5, 0),
+  SS = c(115, 111, 109, 86, 79, 100),
+  rxx = c(.93, .92, .92, .92, .88, 0),
+  width = c(rep(1.4, 5), 10.4),
+  alpha = c(rep(1, 5), .3)
+) %>% 
+  mutate(true_hat = rxx * (SS - 100) + 100, 
+         see = ifelse(rxx == 0, 15, 15 * sqrt(rxx - rxx ^ 2)),
+         Scale = fct_inorder(Scale) %>% fct_rev()) %>% 
+  ggplot(aes(y, SS)) + 
+  geom_tile(data = d_rect, aes(width = 5.8, x = 2.9, 
+                               fill = fill, 
+                               height = width, 
+                               y = SS)) + 
+  geom_normalviolin(aes(mu = true_hat, 
+                                        sigma = see, 
+                                        width = width,
+                                        alpha = alpha), 
+                                    face_left = F, 
+                    fill = "white") + 
+  geom_richtext(aes(label = ifelse(Scale == "Population", 
+                               "Population Mean", 
+                               paste0("<span style='font-size:8.5pt;color:white'>(", 
+                                      round(100 * pnorm(SS, 100, 15),0),
+                                     ") </span>",SS, 
+                                      "<span style='font-size:9pt;color:#666666'> (", 
+                                      round(100 * pnorm(SS, 100, 15),0),
+                                     ")</span>"))), 
+            vjust = -0.2, 
+            lineheight = .8, 
+            fill = NA, 
+            color = "gray20",
+            label.color = NA,
+            label.padding = unit(0,"mm")) +
+  geom_text(aes(y = true_hat, 
+                label = ifelse(Scale == "Population", 
+                               "", 
+                               as.character(Scale))), 
+            vjust = 1.5, 
+            color = "gray15",
+            lineheight = .8) +
+  geom_linerange(aes(ymin = true_hat - 1.96 * see,
+                      ymax = true_hat + 1.96 * see), 
+                 size = .5) +
+  geom_pointrange(aes(ymin = true_hat - see,
+                      ymax = true_hat + see), 
+                  size = 1.2, 
+                  fatten = 1.5) +
+  geom_text(aes(x = x, y = y, label = label), 
+            data = tibble(
+              y = c(49.5, 65, 75, 85, 100, 115, 125, 135, 150.5), 
+              x = 5.5, 
+              label = c("Extremely\nLow Range", 
+                                  "Very\nLow", 
+                                  "Low\nRange", 
+                                  "Low\nAverage", 
+                                  "Average\nRange", 
+                                  "High\nAverage", 
+                                  "High\nRange", 
+                                  "Very\nHigh", 
+                                  "Extremely\nHigh Range")), 
+            color = "white", lineheight = .8, size = 4.25) +
+  scale_y_continuous("Standard Scores <span style='font-size:11.7pt;color:#666666'><br>(and Percentile Ranks)</span>", 
+                     breaks = seq(40, 160, 10), 
+                     expand = expansion()) +
+  scale_x_continuous(NULL, expand = expansion(), breaks = NULL) +
+  scale_alpha_identity() +
+  scale_fill_identity() +
+  coord_flip(clip = "off") + 
+  theme(axis.title.x = element_markdown(hjust = 0, margin = margin(l = -0.75, t = .75, unit = "mm")),plot.caption = element_markdown(hjust = 0, size = 10, margin = margin(t = -10.5, l = 102, unit = "mm"), color = "gray40")) +
+  labs(caption = "*Notes:* The white normal curves represent the expected true<br>score distributions for each observed score. The black lines<br>underneath span the 68% and 95% confidence intervals.")
+
+ggsave("Score_Display.png", width = 7.5, height = 6, device = ragg::agg_png)
+fs::file_show("Score_Display.png")
+
+ggsvg("Score_Display", width = 7.5, height = 6)
+
+```
+
+# Binomial cumulative distribution function
+
+```{r}
+
+
+library(lemon)
+xyratio <- 20
+dx <- .0001
+tibble(x = seq(0,50),
+       y = pbinom(x, size = 50, prob = .2)) %>% 
+  mutate(y_lag = pbinom(x - 1, size = 50, prob = .2),
+         slope = xyratio * (y - y_lag),
+         angle = atan(slope) + pi / 2 + rep(c(0,pi), length.out = 51)) %>% 
+  filter(x < 21) %>% 
+  ggplot(aes(x, y)) + 
+  geom_line(size = .5, 
+            linetype = "dotted",
+            color = "gray60") + 
+  geom_richtext(aes(label = WJSmisc::prob_label(y,digits = 2), 
+                 vjust = angle2vjust(angle),
+                 hjust = angle2hjust(angle),
+                 
+              ),
+              # data = . %>% filter(!(x %in% c(1,3,17,19))),
+              label.padding = unit(0, "mm"), 
+              label.margin = unit(0.5, "mm"), 
+              label.color = NA,
+              color = "gray30",
+              size = ggtext_size(15)) +
+  geom_point() +
+  scale_x_continuous("Number Correct", breaks = seq(0,20, 5), minor_breaks = seq(0,20,1)) + 
+  scale_y_continuous("Cumulative Proportion", 
+                     labels = WJSmisc::prob_label, 
+                     minor_breaks = seq(0,1,.05),
+                     breaks = seq(0,1,.1)) + 
+  coord_fixed(xyratio, clip = "off")
+
+ggsave("binomial.png", width = 6.5, height = 6.5, device = ragg::agg_png)
+
+
+ggsvg("binomial", width = 6.5, height = 6.5)
+  
+
+```
+
+
+# pnorm
+
+```{r}
+library(ggh4x)
+ggplot() + 
+  stat_function(fun = \(x) dnorm(x, mean = 100, sd = 15), xlim = c(77,160), geom = "area", fill = "gray90") +
+  stat_function(fun = \(x) dnorm(x, mean = 100, sd = 15), xlim = c(40,77), geom = "area", fill = "gray70") +
+  geom_vline(xintercept = 77, size = .25, color = "gray30") +
+  scale_x_continuous(NULL, 
+                     guide = "axis_minor", 
+                     breaks = seq(40, 160, 15), expand = expansion(mult = .01),
+                     minor_breaks = seq(35,165, 5)) +
+  scale_y_continuous(NULL, breaks = NULL, expand = expansion(mult = c(0))) +
+  theme(axis.ticks.x = element_line(size = .5, color = "gray60"),
+        ggh4x.axis.ticks.length.minor = rel(0.55),
+        axis.line.x = element_line(size = .5, color = "gray60"),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank()) +
+  coord_cartesian(clip = "off") + 
+  # geom_vline(xintercept = 77, size = .25, color = "gray30") +
+  annotate(geom = "richtext",
+           label = "6%",
+           x = 77,
+           y = 0,
+           hjust = 1,
+           vjust = 0,
+           angle = 0, 
+           fill = NA,
+           label.padding = unit(0, "mm"),
+           label.margin = unit(2, "mm"),
+           family = my_font,
+           size = WJSmisc::ggtext_size(20)
+      ) + 
+  annotate(geom = "richtext",
+           x = 77,
+           y = dnorm(77, 100, 15),
+           label = "*X* = 77",
+           hjust = 1,
+           vjust = 0,
+           angle = 0, 
+           fill = NA,
+           label.padding = unit(0, "mm"),
+           label.margin = unit(1, "mm"),
+           family = my_font,
+           size = WJSmisc::ggtext_size(20)
+      )
+
+
+
+ggsvg("pnorm77", width = 6.5, height = 4.5)
+```
+
+
+# Largest Difference
+
+```{r}
+library(tidyverse)
+library(WJSmisc)
+# Correlation matrix
+R <- matrix(c(1.0,0.4,0.5,
+              0.4,1.0,0.6,
+              0.5,0.6,1.0),
+            nrow = 3)
+
+# Covariance matrix
+sigma <- R * 15 ^ 2
+
+# Sample Size
+n <- 1000000
+
+# Simulated Data
+data <- (mvtnorm::rmvnorm(n,mean = rep(100,3), sigma = sigma))
+
+# Find lowest score in each case
+lowest_score <- apply(data, 1, min)
+
+
+# Find highest score in each case
+highest_score <- apply(data, 1, max)
+
+# Range in each case
+score_range <- highest_score - lowest_score
+
+# Proportion of cases in which the range is 30 or greater
+mean(score_range > 30)
+
+range_cdf <- ecdf(score_range)
+
+dx <- 1
+d_label <- tibble(x = seq(0,60,5),
+                  y = range_cdf(x),
+                  slope = (range_cdf(x + dx) - y) / dx,
+                  angle = atan(slope * 60) + pi / 2,
+                  label = WJSmisc::prob_label(y, digits = 2))
+myfont <- "Roboto Condensed"
+ggplot() + 
+  stat_function(fun = range_cdf, color = "gray20", xlim = c(0,60)) +
+  scale_y_continuous("Cumulative Probability", labels = prob_label) +
+  scale_x_continuous("Largest Difference (max – min)", breaks = seq(0,60, 10)) + 
+  geom_point(data = d_label, aes(x,y), color = "gray20") +
+  ggtext::geom_richtext(data = d_label,
+                        aes(x , y, label = WJSmisc::prob_label(y, digits = 2),
+                            hjust = WJSmisc::angle2hjust(angle),
+                            vjust = WJSmisc::angle2vjust(angle)),
+                        family = myfont, label.margin = unit(1, "pt"), label.color = NA,
+                        label.padding = unit(0, "pt"),
+                        color = "gray20",
+                        size = WJSmisc::ggtext_size(16)) +
+  theme_minimal(base_family = myfont, base_size = 16) + 
+  coord_fixed(60, clip = "off")
+
+
+ggsave("diff.png", width = 6.5, height = 6.5, device = ragg::agg_png)
+fs::file_show("diff.png")
+
+ggsvg("diff", width = 6.5, height = 6.5)
+
+```
+
+# True Scores
+
+```{r}
+true_score <- 85
+see <- 5
+n <- 1000
+set.seed(1)
+d_text <- tibble(x = c(100, 115, 85, 90), 
+                 y = c(dnorm(100,100, 15), dnorm(115,100, 15), 
+                       .1 * dnorm(85,85,5), .1 * dnorm(90,85,5)), 
+                 label = c("Population Mean<br>*&mu;* = 100", "Population SD<br>*&sigma;* = 15", "True<br>Score<br>*T*= 85", "Standard Error<br>of Measurement<br>*&sigma;<sub>e</sub>* = 5"),
+                 vjust = c(0,  0.5, 0, 0.5),
+                 hjust = c(0.5, 0, 0.5, 0))
+tibble(x = rnorm(n, true_score, see),
+       y = dnorm(x,true_score, see) * runif(n) * .1) %>% 
+  ggplot(aes(x,y)) + 
+  stat_function(fun = \(x) dnorm(x, mean = 100, sd = 15), xlim = c(40,160), geom = "area", fill = "gray90") +
+  geom_point(pch = 16, size = .4, color = "gray65") +
+  ggtext::geom_richtext(data = d_text, 
+                        mapping = aes(label = label, hjust = hjust, vjust = vjust), 
+                        label.padding = unit(0,"mm"), 
+                        label.margin = margin(b = 1, t = 1, r = 3, l = 3, unit = "mm"),
+                        fill = NA, 
+                        color = "gray30",
+                        size = WJSmisc::ggtext_size(my_font_size)) +
+  scale_x_continuous(NULL, breaks = seq(40, 160, 15)) +
+  scale_y_continuous(NULL, breaks = NULL, expand = expansion(mult = c(0,.09))) +
+  theme(axis.ticks.x = element_line(size = .5, color = "gray30"),
+        axis.line.x = element_line(size = .5, color = "gray30"),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank()) + 
+  annotate(geom = "segment", x = 100, y = dnorm(115,100, 15), xend = 115, yend = dnorm(115,100, 15), arrow = arrow(angle = 15, length = unit(3.5, "mm"), type = "closed"), color = "gray30") + 
+  annotate(geom = "segment", x = 85, y = .1 * dnorm(90,85, 5), xend = 90, yend = .1 * dnorm(90,85, 5), arrow = arrow(angle = 15, length = unit(2.6, "mm"), type = "closed"), color = "gray30") + 
+  coord_cartesian(clip = "off")
+  
+ggsave("true_score.png", width = 6.5, height = 4.5, device = ragg::agg_png)
+fs::file_show("true_score.png")
+
+ggsvg("true_score", width = 6.5, height = 4.5)
+```
+
+# Unidimensional Test
+
+```{r}
+WJSmisc::pdf2svg("unidimensional5")
+```
+
+# Conditional Distribution
+
+
+```{r}
+# Current score
+x <- 75
+
+# Means of x and y
+mu_x <- 100
+mu_y <- 100
+
+# SD of x and y
+sigma_x <- 15
+sigma_y <- 15
+
+# Correlation of x and y
+rho_xy <- 0.84
+
+# Predicted value of y
+y_hat <- rho_xy * sigma_y * (x - mu_x) / sigma_x + mu_y
+
+# Standard error of the estimate
+sigma_e <- sigma_y * sqrt(1 - rho_xy ^ 2)
+
+# Possible threshold value of y
+y <- 90
+
+# Proportion of people with x = 75 that score greater than y
+pGreaterThanY <- 1 - pnorm(y, y_hat, sigma_e)
+
+
+
+```
+
+
+
+```{r}
+d_label <- tibble(
+  x = c(100,
+        152.5,
+        75,
+        95,
+        60),
+  y = c((100 - 100) * rho_xy + 100 - .4,
+        90 - 0.3,
+        47.5,
+        54.6,
+        90 - .3),
+  label = c(
+    "*IQ*<sub>2</sub> = 16 + .84 *IQ*<sub>1</sub> + *e*",
+    "*IQ*<sub>2</sub> = 90",
+    "*IQ*<sub>1</sub> = 75",
+    glue(
+      "When *IQ*<sub>1</sub> = 75,<br>*IQ*<sub>2</sub> ~ *N*({y_hat}, {round(sigma_e,2)})"
+    ),
+    glue(
+      "When *IQ*<sub>1</sub> = 75,<br>P(*IQ*<sub>2</sub> &ge; 90) = {prob_label(pGreaterThanY)}"
+    )
+  )
+)
+
+simstandard::sim_standardized(glue("IQ1 ~~ {rho_xy} * IQ2")) %>%
+  mutate(across(.fns = \(x) x * 15 + 100)) %>%
+  ggplot(aes(IQ1, IQ2)) +
+  geom_polygon(
+    data = WJSmisc::cor_ellipse(
+      r = rho_xy,
+      mean = c(100, 100),
+      sd = c(15, 15)
+    ),
+    aes(x, y),
+    fill = NA,
+    color = "gray",
+    alpha = .15
+  ) +
+  # geom_point(pch = 16, color = "gray20", size = .75, alpha = 0.5) +
+  geom_abline(slope = rho_xy,
+              intercept = 100 - 100 * rho_xy,
+              color = "gray30") +
+  geom_hline(yintercept = 90, linetype = 3) +
+  geom_vline(xintercept = 75, linetype = 3) +
+  geom_normalviolin(
+    data = tibble(mu = y_hat, sigma = sigma_e, x = 75),
+    aes(x = x, mu = mu, sigma = sigma_e),
+    width = 15,
+    face_left = F,
+    alpha = 0.7,
+    inherit.aes = F,
+    p_upper_tail = 1 - pnorm(90, mean = y_hat, sd = sigma_e)
+  ) +
+  scale_x_continuous(
+    "Time 1 IQ: *IQ*<sub>1</sub> ~ *N*(100,15)",
+    breaks = seq(40, 160, 15),
+    minor_breaks = seq(40, 160, 5),
+    expand = expansion()
+  ) +
+  scale_y_continuous(
+    "Time 2 IQ: *IQ*<sub>2</sub> ~ *N*(100,15)",
+    breaks = seq(40, 160, 15),
+    minor_breaks = seq(40, 160, 5),
+    expand = expansion()
+  ) +
+  coord_equal(xlim = c(40, 160),
+              ylim = c(40, 160),
+              clip = "off") +
+  theme(
+    axis.title.x = element_markdown(),
+    axis.title.y = element_markdown(),
+    axis.text.x = element_text(hjust = c(.4, rep(.5, 7), .6)),
+    axis.text.y = element_text(vjust = c(.4, rep(.5, 7), .6)),
+    panel.grid.minor = element_line(size = .25),
+    panel.grid.major = element_line(size = .5)
+  ) +
+  annotate(
+    "segment",
+    x = 87,
+    y = 65.5,
+    xend = 76,
+    yend = 78,
+    arrow = arrow(15, unit(2, "mm"), type = "closed"),
+    color = "gray30"
+  ) +
+  annotate("point", 75, 79, color = "gray30") +
+  geom_richtext(
+    data = d_label,
+    mapping = aes(
+      x,
+      y,
+      label = label,
+      angle = c(atan(rho_xy) * 180 / pi, 0, 90, 0, 0)
+    ),
+    inherit.aes = F,
+    vjust = 0,
+    size = ggtext_size(16),
+    label.padding = unit(0.25, "mm"),
+    label.margin = unit(0.75, "mm")
+  )
+
+ggsvg(
+  "conditional",
+  width = 6.5,
+  height = 6.5
+)
+
+```
+
+# Plots for path diagram
+
+
+```{r}
+# Test scores
+SS <- c(99, 68, 70, 79)
+
+# Variable names
+names(SS) <- c("OV", "SA", "LW", "PC")
+
+# Correlation matrix
+R <- matrix(c(
+  1.00, 0.38, 0.58, 0.62,
+  0.38, 1.00, 0.48, 0.51,
+  0.58, 0.48, 1.00, 0.71,
+  0.62, 0.51, 0.71, 1.00),
+  nrow = 4, ncol = 4)
+rownames(R) <- colnames(R) <- names(SS)
+
+# Predictor Matrix
+x <- c("OV","SA")
+y <- "LW"
+Rxx <- R[x,x]
+
+# Validity vector
+Rxy <- R[x,y]
+
+# Coefficients
+Beta <- solve(Rxx) %*% Rxy
+
+# Intercept
+b0 <- 100 - sum(100 * Beta)
+
+# Predicted BR
+y_hat <- b0 + t(Beta) %*% SS[x]
+
+# Error
+e <- SS[y] - y_hat
+
+# Coefficient of determination
+R2 <- t(Beta) %*% Rxy
+
+# Standard error of the estimate
+sigma_e <- 15 * sqrt(1 - R2)
+
+# Proportion of people with Y - Yhat < e
+py_hat <- pnorm(e / sigma_e)
+
+
+b <- WJSmisc::lm_matrix(R, ind = c("OV","SA", "LW"), dep = "PC")$b
+b0 <- 100 - sum(b * 100)
+yhat_PC <- sum(SS[c("OV","SA", "LW")] * b)  + b0
+sigma_e_PC <- 15 * sqrt(1 - WJSmisc::lm_matrix(R, ind = c("OV","SA", "LW"), dep = "PC")$R)
+e_PC <- SS["PC"] - yhat_PC
+pnorm(e_PC / sigma_e_PC)
+```
+
+
+```{r}
+makeplot <- function(name,
+                     x,
+                     yhat = NA,
+                     sigma = NA,
+                     vjust = 0) {
+  p <- ggplot() +
+    stat_function(
+      fun = \(x) dnorm(x, 100, 15),
+      xlim = c(40, 160),
+      geom = "area",
+      fill = "gray90"
+    ) 
+  
+  if (!is.na(yhat)) {
+    p <- p +
+      stat_function(
+      fun = \(x) 0.3 * dnorm(x, yhat, sigma),
+      xlim = c(40, 160),
+      geom = "area",
+      fill = "gray70"
+    ) +
+    stat_function(
+      fun = \(x) 0.3 * dnorm(x, yhat, sigma),
+      xlim = c(40, x),
+      geom = "area",
+      fill = "gray50"
+    )
+  } else {
+    p <- p +
+      stat_function(
+      fun = \(x) dnorm(x, 100, 15),
+      xlim = c(40, x),
+      geom = "area",
+      fill = "gray50"
+    ) 
+  }
+   p <- p  +
+    annotate(
+      "point",
+      x = x,
+      y = 0,
+      pch = 16,
+      size = 8
+    ) +
+    annotate(
+      "text",
+      x = x,
+      y = 0, family = "Fira Sans",
+      size = 30,
+      label = x,
+      vjust = vjust
+    ) +
+    coord_fixed(ratio = 1500, clip = "off") +
+    scale_x_continuous(NULL,
+                       breaks = seq(40, 160, 15),
+                       expand = expansion(add = 1)) +
+    scale_y_continuous(NULL, breaks = NULL, expand = expansion()) +
+    theme(
+      axis.line = element_blank(),
+      panel.grid = element_blank(),
+      axis.text.x = element_blank(),
+      axis.ticks.length.x = unit(4, "mm"),
+      axis.ticks.x = element_line(colour = "gray70", size = 2)
+    )
+  ggsave(plot = p, filename = glue("yhat{name}.pdf"), device = cairo_pdf)
+  print(p)
+  
+}
+names(SS)
+tibble(x = SS, 
+       yhat = c(NA, NA, y_hat, yhat_PC), 
+       sigma = c(NA, NA, sigma_e, sigma_e), 
+       name = names(SS), 
+       vjust = c(-2.8, -.9, -1, -1.8)) %>% 
+  pwalk(makeplot)
+
+pdf2svg("readingprediction")
+fs::file_show("readingprediction.svg")
+```
+
+```{r}
+pdf2svg("attenuation")
+fs::file_show("attenuation.svg")
+```
+
+# SEM-based CI
+
+```{r}
+set.seed(1234567890)
+rxx <- .8
+SEE <- sqrt(1 - rxx)
+z <- qnorm(0.975)
+n <- 100
+tibble(Tr = rnorm(n, sd = sqrt(rxx)),
+       e = rnorm(n, sd = SEE)) %>% 
+  mutate(X = Tr + e,
+         lb = X - SEE * z, 
+         ub = X + SEE * z,
+         contained = ifelse(Tr > lb & Tr < ub, "True Score Inside Confidence Interval", "True Score Outside Confidence Interval") %>% factor) %>% 
+  ggplot(aes(Tr, X)) + 
+  geom_ribbon(data = tibble(Tr = c(-3, 3), 
+                            ymax = Tr + SEE * z, 
+                            ymin = Tr - SEE * z), aes(ymin = ymin, ymax = ymax, x = Tr), inherit.aes = F, alpha = 0.1) +
+    geom_pointrange(aes(color = contained, ymin = lb, ymax = ub, size = contained)) +
+  coord_equal(xlim = c(-3,3), ylim = c(-4, 4)) + 
+  theme_minimal(base_size = my_font_size, base_family = my_font, base_line_size = .4) + 
+    scale_y_continuous("Observed Scores", 
+                       expand = expansion(),
+                       # labels = c(-3sigma),
+                       breaks = -4:4) + 
+    scale_x_continuous("True Scores", 
+                       expand = expansion(),
+                       breaks = -4:4) + 
+  geom_abline(slope = 1, intercept = 0) + 
+  scale_size_manual(NULL, values = c(0.1,.65)) + 
+  scale_color_manual(NULL, values = c("gray45", "gray20")) + 
+  theme(legend.position = c(.02,.99), 
+        legend.justification = c(0.02,.99), 
+        legend.background = element_rect(fill = "white", color = NA),
+        plot.background = element_rect(fill = "white", colour = NA)) + 
+  geom_text(data = tibble(x = -2.35, 
+                          y = c(x, x + z * SEE, x - z * SEE ), 
+                          label = c("italic(X) == italic(T)",
+                                    "italic(X) > italic(T) + italic(z) %*% SEM",
+                                    "italic(X) < italic(T) - italic(z) %*% SEM"),
+                          vjust = c(-0.5, -0.5, 1.5)), 
+            aes(x,y, label = label, vjust = vjust),
+           parse = T, 
+           hjust = 0.5, 
+           angle = 45,
+           family = my_font,
+           size = WJSmisc::ggtext_size(my_font_size))
+
+ggsave("SEMCI.png", device = ragg::agg_png, width = 6.5, height = 8.5)
+file.show("SEMCI.png")
+```
+
+
+# CI
+
+```{r}
+rxx <- .8
+see <- sqrt(rxx - rxx ^ 2)
+sem <- sqrt(1 - rxx)
+n <- 1000
+t <- rnorm(n, mean = 0, sd = sqrt(rxx) )
+e <- rnorm(n, mean = 0, sd = sqrt(1 - rxx) )
+x <- t + e
+
+xx <- sqrt((3 ^ 2 + (3 * rxx) ^ 2)/ 2)
+d_ellipse <- WJSmisc::cor_ellipse(sqrt(rxx), sd = c(1, sqrt(rxx)))
+ggplot() +
+  geom_polygon(data = d_ellipse, aes(x,y), alpha = 0.2, fill = NA, color = "gray80") +
+  geom_point(data = tibble(x = x, t = t), pch = 16, size = .5, color = "gray30", aes(x,t), alpha = 0.5) + 
+  coord_fixed(xlim = c(-3, 3), ylim = c(-3, 3)) + 
+  scale_x_continuous("Observed Scores: *X* ~ N(0, 1)", breaks = -4:4, expand = expansion()) + 
+  scale_y_continuous(glue("True Scores: *T* ~ N(0, {rxx})"), breaks = -4:4, expand = expansion())  + 
+  geom_abline(slope = (rxx), intercept = 0, alpha = .3) + 
+  geom_segment(data = tibble(x = -xx, xend = xx,  y = -xx, yend = xx), 
+               aes(x,y, xend = xend, yend = yend), 
+               alpha = .3) + 
+  theme(axis.title.x = element_markdown(),
+        axis.title.y = element_markdown()) + 
+  stat_function(fun = \(x) 0.5 * dnorm(x, 1, see) / dnorm(1,1,see) + 1, 
+                geom = "polygon", 
+                alpha = 0.25, 
+                fill = "black") + 
+  ggnormalviolin::geom_normalviolin(data = tibble(x = -1), 
+                                    face_left = F,
+                                    aes(mu = -1 * rxx, sigma = see, x = x),
+                                    inherit.aes = F, 
+                                    width = 1, 
+                                    fill = "black", 
+                                    alpha = 0.25) + 
+  geom_point(data = tibble(x = c(-1, 1), t = c(-rxx, 1)), aes(x,t)) + 
+  geom_segment(data = tibble(x = c(-1, 1), 
+                             t = c(-rxx, 1), 
+                             xend = c(-1,1 + sem),
+                             tend = c(-rxx + see, 1)), 
+               aes(xend = xend, yend = tend, x = x, y = t), arrow = arrow(angle = 15, length = unit(2.5, "mm"), type = "closed")) + 
+  geom_richtext(data = tibble(x = c(1 + sem / 2, -1, 1 , -0.5, -1.5), 
+                              y = c(1, -rxx + see / 2, 1.5, -rxx, 1.5), 
+                              hjust = c(0.5, 1, 0.5, 0, 0.5),
+                              vjust = c(1, 0.5, 0, 0.5, 0.5),
+                              label = c(glue("SEM = {prob_label(sem)}"), 
+                                        glue("SEE = {prob_label(see)}"),
+                                        glue("When *T* = 1,<br>*X* ~ N(1, {prob_label(sem)})"),
+                                        glue("When *X* = &minus;1,<br>*T* ~ N(&minus;{prob_label(rxx)}, {prob_label(see)})"), 
+                                        glue("*r<sub>XX</sub>* = {prob_label(rxx)}"))), 
+                mapping = aes(x,y, label = label, vjust = vjust, hjust = hjust), label.padding = unit(0,"mm"), label.margin = unit(2,"mm"), size = ggtext_size(18))
+  
+ggsvg("ci", width = 6.5, height = 6.5)
+
+```
+
